@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 from models import Action, Decision, Effect
-
+import yaml
 _MISSING = object()
 
 
@@ -73,7 +73,7 @@ class PolicyEngine:
 
     @classmethod
     def from_yaml(cls, path: str) -> "PolicyEngine":
-        import yaml
+
         with open(path) as f:
             raw = yaml.safe_load(f) or {}
         rules = []
