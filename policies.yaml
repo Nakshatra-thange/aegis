@@ -1,0 +1,54 @@
+rules:
+  - id: R1
+    tool: gdrive
+    action_type: read
+    effect: allow
+    description: reads are always safe
+
+  - id: R2
+    tool: gmail
+    action_type: send
+    effect: allow
+    description: internal recipients are pre-approved
+    when:
+      - field: target
+        op: domain_in
+        value: [libra.ai, internal.co]
+
+  - id: R3
+    tool: gmail
+    action_type: send
+    effect: require_approval
+    description: external recipients need human sign-off
+    when:
+      - field: target
+        op: domain_not_in
+        value: [libra.ai, internal.co]
+
+  - id: R4
+    tool: slack
+    action_type: post_message
+    effect: deny
+    description: sensitive channels are off-limits to agents
+    when:
+      - field: params.channel
+        op: in
+        value: ["#exec", "#finance"]
+
+  - id: R5
+    tool: slack
+    action_type: post_message
+    effect: allow
+    description: general channels are open
+
+  - id: R6
+    tool: linear
+    action_type: create_issue
+    effect: allow
+    description: creating issues is low-risk
+
+  - id: R7
+    tool: gmail
+    action_type: read
+    effect: allow
+    description: reads are always safe
