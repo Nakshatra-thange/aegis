@@ -44,28 +44,35 @@ class Gateway:
 
 if __name__ == "__main__":
     import os
+    from approvals import ApprovalQueue
+
     if os.path.exists("audit_log.jsonl"):
-        os.remove("audit_log.jsonl")        # fresh run for a repeatable demo
+        os.remove("audit_log.jsonl")
 
-    gw = Gateway(PolicyEngine.from_yaml("policies.yaml"), AuditLog())
+    log = AuditLog()
+    gw = Gateway(PolicyEngine.from_yaml("policies.yaml"), log)
+    gw.approvals = ApprovalQueue(gw, log)      # attach after gateway exists
 
-    demo = [
-        Action("libra-agent", "gdrive", "read", "Q3 board deck", "user asked for a summary"),
-        Action("libra-agent", "slack", "post_message", "#exec", "post the summary",
-               params={"channel": "#exec"}),
-        Action("libra-agent", "gmail", "send", "client@acme.com", "send the recap",
-               params={"subject": "Q3 recap"}),
-        Action("libra-agent", "gmail", "send", "teammate@libra.ai", "internal fyi"),
-        Action("libra-agent", "notion", "delete_page", "Roadmap", "cleanup"),
-    ]
+    # an external email gets deferred to a human
+    email = Action("libra-agent", "gmail", "send", "client@acme.com",
+                   "send the Q3 recap", params={"subject": "Q3 recap"})
+    entry = gw.submit(email)
+    print(f"submitted -> {entry.outcome}: {entry.decision['reason']}")
 
-    print(f"{'action':28}{'target':20}{'outcome':10}reason")
-    print("-" * 100)
-    for a in demo:
-        e = gw.submit(a)
-        act = f"{a.tool}.{a.action_type}"
-        print(f"{act:28}{a.target:20}{e.outcome:10}{e.decision['reason']}")
+    pending = gw.approvals.list_pending()
+    print(f"\npending queue has {len(pending)} item(s):")
+    for p in pending:
+        print(f"  {p.action.id}  {p.action.tool}.{p.action.action_type} -> {p.action.target}")
 
-    ok, msg = gw.log.verify()
-    print("-" * 100)
-    print("audit chain:", "OK" if ok else "TAMPERED", "-", msg)
+    # a human reviews and approves it
+    print("\n-- Nakshatra reviews and approves --")
+    result = gw.approvals.approve(email.id, approver="nakshatra",
+                                  reason="client relationship is known, recap is accurate")
+    print(f"after approval -> {result.outcome}: {result.decision['reason']}")
+
+    print("\nfull trail for this workflow (run_id):")
+    for e in log.replay(email.run_id):
+        print(f"  seq {e.seq}: {e.decision['effect']:16} {e.outcome:9} {e.decision['reason']}")
+
+    ok, msg = log.verify()
+    print(f"\naudit chain: {'OK' if ok else 'TAMPERED'} - {msg}")
